@@ -1,0 +1,5 @@
+500, Nayad
+200, Noa
+100, Louis
+50, Abdou
+10, Osiris

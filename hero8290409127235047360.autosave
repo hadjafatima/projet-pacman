@@ -1,0 +1,142 @@
+// ------------------------------------------------------------
+// Classe Hero : représente Pac-Man
+// ------------------------------------------------------------
+class Hero {
+  // Position en pixels (sur l'écran)
+  PVector _position;
+
+  // Position en cellules (sur le plateau)
+  int _cellX, _cellY;
+
+  // Taille d'affichage de Pac-Man
+  float _size = 30;
+
+  // Infos du plateau
+  int _cellSize;
+  float _departX;
+  float _departY;
+
+  // Mouvement fluide
+  PVector _direction = new PVector(0, 0);     // direction actuelle
+  PVector _nextDirection = new PVector(0, 0); // direction voulue
+  float _speed = 2.0;                         // pixels par frame
+
+  // ------------------------------------------------------------
+  // Constructeur
+  // ------------------------------------------------------------
+  Hero(Board plateau, int cellSize) {
+    _cellSize = cellSize;
+    _departX  = plateau._position.x;
+    _departY  = plateau._position.y;
+
+    // position initiale définie dans Board
+    _cellX = plateau._pacX;
+    _cellY = plateau._pacY;
+
+    _position = new PVector(0, 0);
+    updateposPac(); // calcule la position pixel initiale
+  }
+
+  // ------------------------------------------------------------
+  // Définir la prochaine direction (appelée par keyPressed)
+  // ------------------------------------------------------------
+  void move(Board plateau, int dirX, int dirY) {
+    _nextDirection.set(dirX, dirY);
+  }
+
+  // ------------------------------------------------------------
+  // Mise à jour de la position pixel en fonction de la cellule
+  // ------------------------------------------------------------
+  void updateposPac() {
+    _position.x = _departX + (_cellX * _cellSize) + (_cellSize / 2);
+    _position.y = _departY + (_cellY * _cellSize) + (_cellSize / 2);
+  }
+
+  // ------------------------------------------------------------
+  // Déplacement fluide
+  // ------------------------------------------------------------
+  void update(Board board) {
+    // cellule actuelle estimée
+    int cx = int((_position.x - _departX) / _cellSize);
+    int cy = int((_position.y - _departY) / _cellSize);
+
+    // centre de la cellule
+    float centerX = _departX + cx * _cellSize + _cellSize/2;
+    float centerY = _departY + cy * _cellSize + _cellSize/2;
+
+    boolean isCentered =
+      abs(_position.x - centerX) < 1 &&
+      abs(_position.y - centerY) < 1;
+
+    if (isCentered) {
+      // recaler Pac-Man au centre exact
+      _position.x = centerX;
+      _position.y = centerY;
+
+      // mettre à jour la cellule
+      _cellX = cx;
+      _cellY = cy;
+
+      // manger une gomme si présente
+      eatDot(board);
+
+      // essayer de tourner (si la prochaine direction est libre)
+      int nx = cx + int(_nextDirection.x);
+      int ny = cy + int(_nextDirection.y);
+
+      if (board.getTypeCell(nx, ny) != TypeCell.WALL) {
+        _direction.set(_nextDirection);
+      }
+
+      // vérifier si on peut continuer dans la direction actuelle
+      int tx = cx + int(_direction.x);
+      int ty = cy + int(_direction.y);
+
+      if (board.getTypeCell(tx, ty) == TypeCell.WALL) {
+        _direction.set(0, 0); // stop si mur
+      }
+    }
+
+    // déplacement fluide (pixels par frame)
+    _position.x += _direction.x * _speed;
+    _position.y += _direction.y * _speed;
+  }
+
+  // ------------------------------------------------------------
+  // Dessin de Pac-Man
+  // ------------------------------------------------------------
+  void drawIt() {
+    fill(255, 255, 0);
+    noStroke();
+    ellipseMode(CENTER);
+    ellipse(_position.x, _position.y, _size, _size);
+  }
+
+  // ------------------------------------------------------------
+  // Direction voulue (alternative à move)
+  // ------------------------------------------------------------
+  void setNextDirection(int dx, int dy) {
+    _nextDirection.set(dx, dy);
+  }
+
+  // ------------------------------------------------------------
+  // Manger les gommes
+  // ------------------------------------------------------------
+  int eatDot(Board board) {
+    TypeCell c = board.getTypeCell(_cellX, _cellY);
+
+    if (c == TypeCell.DOT) {
+      board._cells[_cellY][_cellX] = TypeCell.EMPTY;
+      _score += 10;
+      return 10;
+    }
+
+    if (c == TypeCell.SUPER_DOT) {
+      board._cells[_cellY][_cellX] = TypeCell.EMPTY;
+      _score += 50;
+      return 50;
+    }
+
+    return 0;
+  }
+}

@@ -1,0 +1,632 @@
+import java.util.ArrayList; //<>// //<>//
+
+// ------------------------------------------------------------
+// Variables globales
+// ------------------------------------------------------------
+Game game;
+Board plateau;
+Hero pacman;
+Ghost[] ghosts = new Ghost[4];
+int level = 1;
+boolean superMode = false;
+int superTimer = 0;
+int superDuration = 600;
+
+int _score = 0;
+int _lives = 3;
+
+int gameState = 0;   // 0 = menu, 1 = jeu, 2 = pause, 3 = game over, 4 = scores
+boolean gameOver = false;
+
+
+// TOP 5 scores
+ArrayList<Integer> topScores = new ArrayList<Integer>();
+ArrayList<String> topPlayers = new ArrayList<String>();
+
+boolean askName = false;
+String typedName = "";
+
+
+// ------------------------------------------------------------
+// Setup
+// ------------------------------------------------------------
+void setup() {
+  size(790, 760, P2D);
+
+  game = new Game();
+  level = 1;       // on commence au niveau 1
+
+  initLevel();
+  loadHighScore();
+}
+void initLevel() {
+  PVector position = new PVector(50, 50);
+
+  plateau = new Board(position, CELL_SIZE);
+  pacman = new Hero(plateau, CELL_SIZE);
+
+  color[] ghostColors = {
+    color(255, 184, 82),
+    color(0, 255, 255),
+    color(255, 184, 255),
+    color(230, 0, 100)
+  };
+
+  float[] ghostSpeeds = {1.2, 1.0, 1.0, 1.0};
+
+  int[][] ghostStart = {
+    {11, 10},
+    {12, 10},
+    {10, 10},
+    {11, 9}
+  };
+
+  String[] ghostNames = {
+    "Blinky",
+    "Inky",
+    "Clyde",
+    "Pinky"
+  };
+
+  for (int i = 0; i < ghosts.length; i++) {
+    ghosts[i] = new Ghost(
+      plateau,
+      ghostStart[i][0],
+      ghostStart[i][1],
+      CELL_SIZE,
+      ghostColors[i],
+      ghostSpeeds[i],
+      ghostNames[i]
+    );
+  }
+
+  superMode = false;
+  superTimer = 0;
+}
+void loadLevel(int lvl) {
+  level = lvl;
+
+  PVector position = new PVector(50, 50);
+  String file = "levels/level" + lvl + ".txt";
+
+  plateau = new Board(position, CELL_SIZE, file);
+  pacman = new Hero(plateau, CELL_SIZE);
+
+  color[] ghostColors = {
+    color(255, 10, 40),
+    color(50, 100, 255),
+    color(255, 128, 0),
+    color(255, 0, 255)
+  };
+
+  float[] ghostSpeeds = {1.2, 1.0, 1.0, 1.0};
+
+  int[][] ghostStart = {
+    {11, 10},
+    {12, 10},
+    {10, 10},
+    {11, 9}
+  };
+
+  String[] ghostNames = {
+    "Blinky",
+    "Inky",
+    "Clyde",
+    "Pinky"
+  };
+
+  for (int i = 0; i < ghosts.length; i++) {
+    ghosts[i] = new Ghost(
+      plateau,
+      ghostStart[i][0],
+      ghostStart[i][1],
+      CELL_SIZE,
+      ghostColors[i],
+      ghostSpeeds[i],
+      ghostNames[i]
+    );
+  }
+
+  superMode = false;
+  superTimer = 0;
+}
+
+// ------------------------------------------------------------
+// DRAW PRINCIPAL
+// ------------------------------------------------------------
+void draw() {
+
+  if (gameState == 0) {
+    drawMenu();
+  }
+
+  else if (gameState == 1) {
+    drawGame();
+  }
+
+  else if (gameState == 2) {
+    drawGame();
+    drawPauseMenu();
+  }
+
+  else if (gameState == 3) {
+    drawGameOver();
+  }
+
+  else if (gameState == 4) {
+    showHighScores();
+  }
+}
+
+
+// ------------------------------------------------------------
+// DESSIN DU JEU
+// ------------------------------------------------------------
+void drawGame() {
+
+  background(0);
+
+  plateau.drawIt(superMode);
+
+  for (Ghost g : ghosts) {
+    g.update(plateau, pacman);
+    g.drawIt();
+  }
+
+  pacman.update(plateau);
+  pacman.drawIt();
+  // Si plus aucune gomme → passage au niveau suivant
+  if (!plateau.hasDotsLeft()) {
+    level++;            // passer à T2 (level2)
+    initLevel();        // recharge le plateau, pacman, ghosts avec le nouveau level
+    return;             // on arrête le drawGame ici pour cette frame
+  }
+
+  fill(255);
+  textSize(24);
+  text("Score : " + _score, 50, height - 20);
+
+  float lifeSize = 20;
+  text("Vies : ", width/2, height - 20);
+  for (int i = 0; i < _lives; i++) {
+    drawLifeIcon(width/2 + 70 + (i * 25), height - 25, lifeSize);
+  }
+
+  if (gameOver) {
+    gameState = 3;
+  }
+
+  for (Ghost g : ghosts) {
+    if (checkCollision(pacman, g)) {
+
+      if (superMode && !g.eaten) {
+        _score += 200;
+        g.reset(plateau);
+        g.eaten = true;
+      } else {
+        loseLife();
+        resetGhosts();
+        break;
+      }
+    }
+  }
+
+  if (superMode) {
+    superTimer--;
+
+    fill(0, 0, 100, 40);
+    rect(0, 0, width, height);
+
+    if (superTimer <= 0) {
+      superMode = false;
+      for (Ghost g : ghosts) g.eaten = false;
+    }
+  }
+  if (!plateau.hasDotsLeft()) {
+  println("PLUS AUCUNE GOMME !");
+}
+}
+
+
+// ------------------------------------------------------------
+// MENU PRINCIPAL
+// ------------------------------------------------------------
+void drawMenu() {
+  background(0);
+
+  textAlign(CENTER, CENTER);
+  fill(255, 255, 0);
+  textSize(60);
+  text("PAC-MAN", width/2, height/3);
+
+  textSize(30);
+  fill(255);
+  text("Appuie sur ESPACE pour jouer", width/2, height/2);
+  text("M - Voir les meilleurs scores", width/2, height/2 + 50);
+}
+
+
+// ------------------------------------------------------------
+// MENU PAUSE
+// ------------------------------------------------------------
+void drawPauseMenu() {
+
+  fill(0, 0, 0, 180);
+  rect(0, 0, width, height);
+
+  fill(50);
+  rect(width/2 - 200, height/2 - 170, 400, 340, 20);
+
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(32);
+  text("Pause", width/2, height/2 - 120);
+
+  textSize(22);
+  text("R - Recommencer",      width/2, height/2 - 60);
+  text("S - Sauvegarder",      width/2, height/2 - 20);
+  text("C - Charger",          width/2, height/2 + 20);
+  text("M - Meilleurs scores", width/2, height/2 + 60);
+  text("X - Réinitialiser tout", width/2, height/2 + 100);
+  text("Q - Quitter",          width/2, height/2 + 140);
+}
+
+
+// ------------------------------------------------------------
+// GAME OVER
+// ------------------------------------------------------------
+void drawGameOver() {
+  background(0);
+  textAlign(CENTER, CENTER);
+
+  if (askName) {
+    fill(255, 255, 0);
+    textSize(40);
+    text("Nouveau meilleur score !", width/2, height/2 - 80);
+
+    fill(255);
+    textSize(25);
+    text("Entre ton nom :", width/2, height/2 - 20);
+
+    textSize(30);
+    text(typedName + "_", width/2, height/2 + 30);
+
+    return;
+  }
+
+  fill(255, 255, 0);
+  textSize(60);
+  text("GAME OVER", width/2, height/2 - 50);
+
+  textSize(30);
+  fill(255);
+  text("Score final : " + _score, width/2, height/2 + 20);
+  text("Appuie sur ESPACE pour recommencer", width/2, height/2 + 80);
+// Vérifier si toutes les gommes sont mangées
+  if (!plateau.hasDotsLeft()) {
+    gameOver = true;
+    gameState = 3;  // Aller à l'écran Game Over
+    return;
+}
+}
+
+
+// ------------------------------------------------------------
+// COLLISION
+// ------------------------------------------------------------
+boolean checkCollision(Hero pacman, Ghost ghost) {
+  float d = dist(pacman._position.x, pacman._position.y, ghost.x, ghost.y);
+  return d < CELL_SIZE * 0.6;
+}
+
+
+// ------------------------------------------------------------
+// TOUCHES
+// ------------------------------------------------------------
+void keyPressed() {
+
+  // Saisie du nom pour le TOP 5
+  if (askName) {
+
+    if (keyCode == ENTER) {
+      // 1. Ajout du score
+      topScores.add(_score);
+      topPlayers.add(typedName);
+
+      // 2. Tri décroissant
+      for (int i = 0; i < topScores.size(); i++) {
+        for (int j = i + 1; j < topScores.size(); j++) {
+          if (topScores.get(j) > topScores.get(i)) {
+            int ts = topScores.get(i);
+            topScores.set(i, topScores.get(j));
+            topScores.set(j, ts);
+
+            String tp = topPlayers.get(i);
+            topPlayers.set(i, topPlayers.get(j));
+            topPlayers.set(j, tp);
+          }
+        }
+      }
+
+      // 3. Garder seulement les 5 meilleurs
+      while (topScores.size() > 5) {
+        topScores.remove(topScores.size() - 1);
+        topPlayers.remove(topPlayers.size() - 1);
+      }
+
+      // 4. Sauvegarde
+      saveHighScore();
+
+      askName = false;
+      return;
+    }
+
+    if (keyCode == BACKSPACE && typedName.length() > 0) {
+      typedName = typedName.substring(0, typedName.length()-1);
+      return;
+    }
+
+    if (key >= ' ' && key <= 'z') {
+      typedName += key;
+    }
+
+    return;
+  }
+
+  // MENU PRINCIPAL
+  if (gameState == 0) {
+    if (key == ' ') {
+      gameState = 1;
+    }
+    if (key == 'm' || key == 'M') {
+      gameState = 4;
+    }
+  }
+
+  // GAME OVER
+  if (gameState == 3 && key == ' ') {
+    restartGame();
+  }
+
+  // PAUSE
+  if (keyCode == ESC) {
+    key = 0;
+    if (gameState == 1) gameState = 2;
+    else if (gameState == 2) gameState = 1;
+  }
+
+  // MENU PAUSE
+  if (gameState == 2) {
+    if (key == 'r' || key == 'R') restartGame();
+    if (key == 's' || key == 'S') saveGame();
+    if (key == 'c' || key == 'C') loadGame();
+    if (key == 'm' || key == 'M') gameState = 4;
+    if (key == 'x' || key == 'X') resetEverything();
+    if (key == 'q' || key == 'Q') exit();
+  }
+
+  // RETOUR DES SCORES
+  if (gameState == 4 && (key == 'p' || key == 'P')) {
+    // si on vient du menu principal → retour menu
+    if (_lives == 3 && _score == 0 && !gameOver) {
+      gameState = 0;
+    } else {
+      // sinon retour au menu pause
+      gameState = 2;
+    }
+  }
+
+  // CONTROLES DU JEU
+  if (gameState == 1 && key == CODED) {
+    if (keyCode == UP)    pacman.move(plateau, 0, -1);
+    if (keyCode == DOWN)  pacman.move(plateau, 0, 1);
+    if (keyCode == LEFT)  pacman.move(plateau, -1, 0);
+    if (keyCode == RIGHT) pacman.move(plateau, 1, 0);
+  }
+}
+
+
+// ------------------------------------------------------------
+// VIES
+// ------------------------------------------------------------
+void drawLifeIcon(float x, float y, float size) {
+  fill(255, 255, 0);
+  noStroke();
+  arc(x, y, size, size, radians(30), radians(330));
+}
+
+void loseLife() {
+  _lives--;
+  delay(1000);
+
+  pacman._cellX = plateau._pacX;
+  pacman._cellY = plateau._pacY;
+  pacman.updateposPac();
+  pacman._direction.set(0, 0);
+  pacman._nextDirection.set(0, 0);
+
+  if (_lives <= 0) {
+    gameOver = true;
+
+    // Vérifier si le score entre dans le TOP 5
+    boolean isTop = false;
+
+    if (topScores.size() < 5) {
+      isTop = true;
+    } else if (_score > topScores.get(topScores.size() - 1)) {
+      isTop = true;
+    }
+
+    if (isTop) {
+      askName = true;
+      typedName = "";
+    }
+  }
+}
+
+
+// ------------------------------------------------------------
+// RESET FANTOMES
+// ------------------------------------------------------------
+void resetGhosts() {
+  for (Ghost g : ghosts) g.reset(plateau);
+}
+
+
+// ------------------------------------------------------------
+// MENU PAUSE : ACTIONS
+// ------------------------------------------------------------
+void restartGame() {
+  _score = 0;
+  _lives = 3;
+  gameOver = false;
+  askName = false;
+  typedName = "";
+  superMode = false;
+  superTimer = 0;
+
+  setup();
+  gameState = 1;
+}
+
+
+// Réinitialisation complète : jeu + scores
+void resetEverything() {
+  _score = 0;
+  _lives = 3;
+  gameOver = false;
+  askName = false;
+  typedName = "";
+  superMode = false;
+  superTimer = 0;
+
+  topScores.clear();
+  topPlayers.clear();
+  saveHighScore(); // vide le fichier highscore
+
+  setup();
+  gameState = 1;
+}
+
+
+// ------------------------------------------------------------
+// SAUVEGARDE / CHARGEMENT DE PARTIE
+// ------------------------------------------------------------
+void saveGame() {
+  ArrayList<String> data = new ArrayList<String>();
+
+  data.add(str(_score));
+  data.add(str(_lives));
+
+  data.add(pacman._position.x + "," + pacman._position.y + "," + pacman._cellX + "," + pacman._cellY);
+
+  for (Ghost g : ghosts) {
+    data.add(g.x + "," + g.y + "," + g.cellX + "," + g.cellY);
+  }
+
+  for (int j = 0; j < plateau._nbCellsX; j++) {
+    String rowData = "";
+    for (int i = 0; i < plateau._nbCellsY; i++) {
+      rowData += plateau._cells[j][i].name() + ",";
+    }
+    data.add(rowData);
+  }
+
+  saveStrings("save.txt", data.toArray(new String[0]));
+  println("Sauvegarde terminée !");
+}
+
+void loadGame() {
+  String[] data = loadStrings("save.txt");
+  if (data == null) {
+    println("Aucune sauvegarde trouvée.");
+    return;
+  }
+
+  int cursor = 0;
+
+  _score = int(data[cursor++]);
+  _lives = int(data[cursor++]);
+
+  String[] pPos = split(data[cursor++], ",");
+  pacman._position.x = float(pPos[0]);
+  pacman._position.y = float(pPos[1]);
+  pacman._cellX = int(pPos[2]);
+  pacman._cellY = int(pPos[3]);
+
+  for (int i = 0; i < ghosts.length; i++) {
+    String[] gPos = split(data[cursor++], ",");
+    ghosts[i].x = float(gPos[0]);
+    ghosts[i].y = float(gPos[1]);
+    ghosts[i].cellX = int(gPos[2]);
+    ghosts[i].cellY = int(gPos[3]);
+  }
+
+  for (int j = 0; j < plateau._nbCellsX; j++) {
+    String[] rowValues = split(data[cursor++], ",");
+    for (int i = 0; i < plateau._nbCellsY; i++) {
+      plateau._cells[j][i] = TypeCell.valueOf(rowValues[i]);
+    }
+  }
+
+  println("Chargement terminé !");
+  gameOver = false;
+  askName = false;
+  gameState = 1;
+}
+
+
+// ------------------------------------------------------------
+// HIGH SCORE (TOP 5)
+// ------------------------------------------------------------
+void showHighScores() {
+  background(0);
+
+  fill(255, 255, 0);
+  textAlign(CENTER, CENTER);
+  textSize(50);
+  text("Meilleurs Scores", width/2, 100);
+
+  fill(255);
+  textSize(30);
+
+  if (topScores.size() == 0) {
+    text("Aucun score pour l'instant", width/2, 220);
+  } else {
+    for (int i = 0; i < topScores.size(); i++) {
+      text((i+1) + ". " + topPlayers.get(i) + " : " + topScores.get(i),
+           width/2, 200 + i * 40);
+    }
+  }
+
+  textSize(20);
+  text("Appuie sur P pour revenir", width/2, height - 50);
+}
+
+
+void saveHighScore() {
+  String[] data = new String[topScores.size()];
+
+  for (int i = 0; i < topScores.size(); i++) {
+    data[i] = topScores.get(i) + ";" + topPlayers.get(i);
+  }
+
+  saveStrings("highscore.txt", data);
+}
+
+
+void loadHighScore() {
+  topScores.clear();
+  topPlayers.clear();
+
+  String[] data = loadStrings("highscore.txt");
+  if (data == null) return;
+
+  for (String line : data) {
+    String[] parts = split(line, ';');
+    if (parts.length == 2) {
+      topScores.add(int(parts[0]));
+      topPlayers.add(parts[1]);
+    }
+  }
+}
